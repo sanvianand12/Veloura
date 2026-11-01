@@ -20,11 +20,7 @@ def get_all_events(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
 @router.get("/stats", response_model=EventStats)
 def get_event_metrics(db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Retrieve aggregate statistics for dashboard metrics."""
-    query = db.query(Event)
-    if isinstance(user, User): query = query.filter(Event.owner_id == user.id)
-    events = query.all()
-    from app.schemas.event import EventStats
-    return EventStats(total_events=len(events), total_budget=sum(e.budget for e in events), total_guests=sum(e.guest_count for e in events), upcoming_events=sum((e.status or '').lower() in ('planning','confirmed') for e in events))
+    return EventService.get_stats(db, owner_id=user.id if isinstance(user, User) else None)
 
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 def create_new_event(event_in: EventCreate, db: Session = Depends(get_db), user: User = Depends(current_user), _: None = Depends(require_csrf)):

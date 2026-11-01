@@ -48,9 +48,11 @@ export const TimelinePage: React.FC = () => {
 
   useEffect(() => {
     if (!selectedId) return;
+    const ev = events.find((event) => event.id === selectedId);
+    if (!ev) return;
     setLoading(true);
-    Promise.all([apiService.getEvent(selectedId), apiService.getEventPlan(selectedId)])
-      .then(([ev, plan]) => {
+    apiService.getEventPlan(selectedId)
+      .then((plan) => {
         const t = plan.timeline as any;
         setTasks(t?.tasks || []);
         setSchedule(t?.day_of_schedule || []);
@@ -58,7 +60,7 @@ export const TimelinePage: React.FC = () => {
       })
       .catch((e) => setError(e?.message))
       .finally(() => setLoading(false));
-  }, [selectedId]);
+  }, [selectedId, events]);
 
   const activeEvent = events.find((e) => e.id === selectedId);
 

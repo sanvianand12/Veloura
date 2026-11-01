@@ -41,27 +41,40 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json();
 }
 
+function localFallbackUrl(input: RequestInfo | URL): URL {
+  const requested = new URL(String(input), window.location.origin);
+  return new URL(`${requested.pathname}${requested.search}`, 'http://127.0.0.1:8000');
+}
+
+async function apiRequest<T>(input: RequestInfo | URL, init: RequestInit = {}): Promise<T> {
+  let response: Response;
+  try {
+    response = await apiFetch(input, init);
+  } catch (error) {
+    // Only retry safe reads, and only on a browser network failure in local dev.
+    // Never replay writes: a lost response can occur after the server committed.
+    const method = (init.method || 'GET').toUpperCase();
+    if (!import.meta.env.DEV || method !== 'GET' || !(error instanceof TypeError)) throw error;
+    response = await apiFetch(localFallbackUrl(input), init);
+  }
+  return handleResponse<T>(response);
+}
+
 export const apiService = {
   /**
    * Check backend health and database connectivity
    */
   async checkHealth(): Promise<HealthCheckResponse> {
     try {
-      const res = await apiFetch(`${API_BASE_URL}/health`);
-      return await handleResponse<HealthCheckResponse>(res);
+      return await apiRequest<HealthCheckResponse>(`${API_BASE_URL}/health`);
     } catch {
-      try {
-        const fallbackRes = await apiFetch('http://127.0.0.1:8000/health');
-        return await handleResponse<HealthCheckResponse>(fallbackRes);
-      } catch {
-        return {
-          status: 'offline',
-          service: 'Veloura Backend API (Disconnected)',
-          timestamp: new Date().toISOString(),
-          database: 'disconnected',
-          version: '0.1.0'
-        };
-      }
+      return {
+        status: 'offline',
+        service: 'Veloura Backend API (Disconnected)',
+        timestamp: new Date().toISOString(),
+        database: 'disconnected',
+        version: '0.1.0'
+      };
     }
   },
 
@@ -69,39 +82,21 @@ export const apiService = {
    * Fetch all scheduled events
    */
   async getEvents(): Promise<Event[]> {
-    try {
-      const res = await apiFetch(`${API_BASE_URL}/api/events`);
-      return await handleResponse<Event[]>(res);
-    } catch {
-      const fallbackRes = await apiFetch('http://127.0.0.1:8000/api/events');
-      return await handleResponse<Event[]>(fallbackRes);
-    }
+    return apiRequest<Event[]>(`${API_BASE_URL}/api/events`);
   },
 
   /**
    * Fetch a single event by ID
    */
   async getEvent(id: number): Promise<Event> {
-    try {
-      const res = await apiFetch(`${API_BASE_URL}/api/events/${id}`);
-      return await handleResponse<Event>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${id}`);
-      return await handleResponse<Event>(fallbackRes);
-    }
+    return apiRequest<Event>(`${API_BASE_URL}/api/events/${id}`);
   },
 
   /**
    * Fetch aggregate statistics
    */
   async getStats(): Promise<EventStats> {
-    try {
-      const res = await apiFetch(`${API_BASE_URL}/api/events/stats`);
-      return await handleResponse<EventStats>(res);
-    } catch {
-      const fallbackRes = await apiFetch('http://127.0.0.1:8000/api/events/stats');
-      return await handleResponse<EventStats>(fallbackRes);
-    }
+    return apiRequest<EventStats>(`${API_BASE_URL}/api/events/stats`);
   },
 
   /**
@@ -110,39 +105,14 @@ export const apiService = {
   async createEvent(input: EventCreateInput): Promise<Event> {
     const body = JSON.stringify(input);
     const headers = { 'Content-Type': 'application/json' };
-
-    try {
-      const res = await apiFetch(`${API_BASE_URL}/api/events`, {
-        method: 'POST',
-        headers,
-        body,
-      });
-      return await handleResponse<Event>(res);
-    } catch {
-      const fallbackRes = await apiFetch('http://127.0.0.1:8000/api/events', {
-        method: 'POST',
-        headers,
-        body,
-      });
-      return await handleResponse<Event>(fallbackRes);
-    }
+    return apiRequest<Event>(`${API_BASE_URL}/api/events`, { method: 'POST', headers, body });
   },
 
   /**
    * Delete an event
    */
   async deleteEvent(id: number): Promise<void> {
-    try {
-      const res = await apiFetch(`${API_BASE_URL}/api/events/${id}`, {
-        method: 'DELETE',
-      });
-      await handleResponse<void>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${id}`, {
-        method: 'DELETE',
-      });
-      await handleResponse<void>(fallbackRes);
-    }
+    return apiRequest<void>(`${API_BASE_URL}/api/events/${id}`, { method: 'DELETE' });
   },
 
   // ----------------------------------------------------
@@ -153,13 +123,7 @@ export const apiService = {
    * Get complete planning journey workspace data & next step
    */
   async getEventPlan(eventId: number): Promise<EventPlanResponse> {
-    try {
-      const res = await apiFetch(`${API_BASE_URL}/api/events/${eventId}/plan`);
-      return await handleResponse<EventPlanResponse>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${eventId}/plan`);
-      return await handleResponse<EventPlanResponse>(fallbackRes);
-    }
+    return apiRequest<EventPlanResponse>(`${API_BASE_URL}/api/events/${eventId}/plan`);
   },
 
   /**
@@ -167,13 +131,7 @@ export const apiService = {
    */
   async generateConcept(eventId: number): Promise<any> {
     const url = `${API_BASE_URL}/api/events/${eventId}/plan/concept/generate`;
-    try {
-      const res = await apiFetch(url, { method: 'POST' });
-      return await handleResponse<any>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${eventId}/plan/concept/generate`, { method: 'POST' });
-      return await handleResponse<any>(fallbackRes);
-    }
+    return apiRequest<any>(url, { method: 'POST' });
   },
 
   /**
@@ -184,13 +142,7 @@ export const apiService = {
     const headers = { 'Content-Type': 'application/json' };
     const body = JSON.stringify(data);
 
-    try {
-      const res = await apiFetch(url, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${eventId}/plan/concept`, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(fallbackRes);
-    }
+    return apiRequest<EventPlanResponse>(url, { method: 'PUT', headers, body });
   },
 
   /**
@@ -201,13 +153,7 @@ export const apiService = {
     const headers = { 'Content-Type': 'application/json' };
     const body = JSON.stringify(data);
 
-    try {
-      const res = await apiFetch(url, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${eventId}/plan/budget`, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(fallbackRes);
-    }
+    return apiRequest<EventPlanResponse>(url, { method: 'PUT', headers, body });
   },
 
   /**
@@ -215,13 +161,7 @@ export const apiService = {
    */
   async getVendors(eventId: number): Promise<Vendor[]> {
     const url = `${API_BASE_URL}/api/events/${eventId}/plan/vendors`;
-    try {
-      const res = await apiFetch(url);
-      return await handleResponse<Vendor[]>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${eventId}/plan/vendors`);
-      return await handleResponse<Vendor[]>(fallbackRes);
-    }
+    return apiRequest<Vendor[]>(url);
   },
 
   /**
@@ -232,13 +172,7 @@ export const apiService = {
     const headers = { 'Content-Type': 'application/json' };
     const body = JSON.stringify({ vendor_id: vendorId, shortlisted });
 
-    try {
-      const res = await apiFetch(url, { method: 'POST', headers, body });
-      return await handleResponse<EventPlanResponse>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${eventId}/plan/vendors/shortlist`, { method: 'POST', headers, body });
-      return await handleResponse<EventPlanResponse>(fallbackRes);
-    }
+    return apiRequest<EventPlanResponse>(url, { method: 'POST', headers, body });
   },
 
   /**
@@ -249,13 +183,7 @@ export const apiService = {
     const headers = { 'Content-Type': 'application/json' };
     const body = JSON.stringify(data);
 
-    try {
-      const res = await apiFetch(url, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${eventId}/plan/timeline`, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(fallbackRes);
-    }
+    return apiRequest<EventPlanResponse>(url, { method: 'PUT', headers, body });
   },
 
   /**
@@ -263,13 +191,7 @@ export const apiService = {
    */
   async toggleTask(eventId: number, taskId: string, completed: boolean): Promise<EventPlanResponse> {
     const url = `${API_BASE_URL}/api/events/${eventId}/plan/tasks/${taskId}?completed=${completed}`;
-    try {
-      const res = await apiFetch(url, { method: 'PATCH' });
-      return await handleResponse<EventPlanResponse>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${eventId}/plan/tasks/${taskId}?completed=${completed}`, { method: 'PATCH' });
-      return await handleResponse<EventPlanResponse>(fallbackRes);
-    }
+    return apiRequest<EventPlanResponse>(url, { method: 'PATCH' });
   },
 
   /**
@@ -280,13 +202,7 @@ export const apiService = {
     const headers = { 'Content-Type': 'application/json' };
     const body = JSON.stringify(data);
 
-    try {
-      const res = await apiFetch(url, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${eventId}/plan/requirements`, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(fallbackRes);
-    }
+    return apiRequest<EventPlanResponse>(url, { method: 'PUT', headers, body });
   },
 
   /**
@@ -297,13 +213,7 @@ export const apiService = {
     const headers = { 'Content-Type': 'application/json' };
     const body = JSON.stringify(data);
 
-    try {
-      const res = await apiFetch(url, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${eventId}/plan/what-if`, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(fallbackRes);
-    }
+    return apiRequest<EventPlanResponse>(url, { method: 'PUT', headers, body });
   },
 
   /**
@@ -314,12 +224,6 @@ export const apiService = {
     const headers = { 'Content-Type': 'application/json' };
     const body = JSON.stringify(data);
 
-    try {
-      const res = await apiFetch(url, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(res);
-    } catch {
-      const fallbackRes = await apiFetch(`http://127.0.0.1:8000/api/events/${eventId}/plan/invitations`, { method: 'PUT', headers, body });
-      return await handleResponse<EventPlanResponse>(fallbackRes);
-    }
+    return apiRequest<EventPlanResponse>(url, { method: 'PUT', headers, body });
   },
 };

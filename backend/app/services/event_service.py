@@ -1,5 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import case, func
 from app.models.event import Event
 from app.schemas.event import EventCreate, EventUpdate, EventStats
 
@@ -61,18 +62,24 @@ class EventService:
         return True
 
     @staticmethod
-    def get_stats(db: Session) -> EventStats:
-        """Calculate aggregate metrics for the dashboard."""
-        events = db.query(Event).all()
-        total_events = len(events)
-        total_budget = sum(e.budget for e in events) if events else 0.0
-        total_guests = sum(e.guest_count for e in events) if events else 0
-        upcoming = len([e for e in events if (e.status or "").lower() in ("planning", "confirmed")])
-        
+    def get_stats(db: Session, owner_id: Optional[int] = None) -> EventStats:
+        """Aggregate dashboard metrics in the database, optionally by owner."""
+        query = db.query(
+            func.count(Event.id),
+            func.coalesce(func.sum(Event.budget), 0.0),
+            func.coalesce(func.sum(Event.guest_count), 0),
+            func.coalesce(func.sum(case(
+                (func.lower(Event.status).in_(("planning", "confirmed")), 1),
+                else_=0,
+            )), 0),
+        )
+        if owner_id is not None:
+            query = query.filter(Event.owner_id == owner_id)
+        total_events, total_budget, total_guests, upcoming = query.one()
         return EventStats(
-            total_events=total_events,
-            total_budget=total_budget,
-            total_guests=total_guests,
-            upcoming_events=upcoming
+            total_events=int(total_events),
+            total_budget=float(total_budget),
+            total_guests=int(total_guests),
+            upcoming_events=int(upcoming),
         )
 

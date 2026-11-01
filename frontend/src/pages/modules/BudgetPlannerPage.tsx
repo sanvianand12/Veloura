@@ -67,11 +67,10 @@ export const BudgetPlannerPage: React.FC = () => {
 
   useEffect(() => {
     if (!selectedId) return;
+    const ev = events.find((event) => event.id === selectedId);
+    if (!ev) return;
     setLoading(true);
-    Promise.all([
-      apiService.getEvent(selectedId),
-      apiService.getEventPlan(selectedId),
-    ]).then(([ev, plan]) => {
+    apiService.getEventPlan(selectedId).then((plan) => {
       const b = plan.budget as any;
       setTotalBudget(b?.total_budget || ev.budget || 0);
       if ((b?.categories || []).length > 0) {
@@ -92,7 +91,7 @@ export const BudgetPlannerPage: React.FC = () => {
       setExpenses(b?.expenses || []);
     }).catch((e) => setError(e?.message))
     .finally(() => setLoading(false));
-  }, [selectedId]);
+  }, [selectedId, events]);
 
   const activeEvent = events.find((e) => e.id === selectedId);
 

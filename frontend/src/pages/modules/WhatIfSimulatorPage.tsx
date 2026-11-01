@@ -88,9 +88,11 @@ export const WhatIfSimulatorPage: React.FC = () => {
 
   useEffect(() => {
     if (!selectedId) return;
+    const ev = events.find((event) => event.id === selectedId);
+    if (!ev) return;
     setLoading(true);
-    Promise.all([apiService.getEvent(selectedId), apiService.getEventPlan(selectedId)])
-      .then(([ev, plan]) => {
+    apiService.getEventPlan(selectedId)
+      .then((plan) => {
         const w = plan.what_if as any;
         setScenarios(w?.scenarios || []);
         setNonNeg(w?.non_negotiables || []);
@@ -99,7 +101,7 @@ export const WhatIfSimulatorPage: React.FC = () => {
       })
       .catch((e) => setError(e?.message))
       .finally(() => setLoading(false));
-  }, [selectedId]);
+  }, [selectedId, events]);
 
   const activeEvent = events.find((e) => e.id === selectedId);
 

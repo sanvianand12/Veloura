@@ -1,24 +1,28 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { LandingPage } from './pages/LandingPage';
-import { DashboardLayout } from './components/DashboardLayout';
-import { DashboardOverview } from './pages/DashboardOverview';
-import { CreateEventPage } from './pages/CreateEventPage';
-import { EventWorkspacePage } from './pages/EventWorkspacePage';
-import { MasterPlanPage } from './pages/MasterPlanPage';
-import { AIStudioPage } from './pages/modules/AIStudioPage';
-import { BudgetPlannerPage } from './pages/modules/BudgetPlannerPage';
-import { VendorMatchPage } from './pages/modules/VendorMatchPage';
-import { TimelinePage } from './pages/modules/TimelinePage';
-import { InclusiveCheckerPage } from './pages/modules/InclusiveCheckerPage';
-import { WhatIfSimulatorPage } from './pages/modules/WhatIfSimulatorPage';
-import { InvitationCreatorPage } from './pages/modules/InvitationCreatorPage';
 import { AuthProvider, ProtectedRoute } from './services/auth';
-import { RegisterPage, SignInPage, ForgotPasswordPage, ResetPasswordPage } from './pages/AuthPages';
+
+const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
+const DashboardLayout = lazy(() => import('./components/DashboardLayout').then((m) => ({ default: m.DashboardLayout })));
+const DashboardOverview = lazy(() => import('./pages/DashboardOverview').then((m) => ({ default: m.DashboardOverview })));
+const CreateEventPage = lazy(() => import('./pages/CreateEventPage').then((m) => ({ default: m.CreateEventPage })));
+const EventWorkspacePage = lazy(() => import('./pages/EventWorkspacePage').then((m) => ({ default: m.EventWorkspacePage })));
+const MasterPlanPage = lazy(() => import('./pages/MasterPlanPage').then((m) => ({ default: m.MasterPlanPage })));
+const AIStudioPage = lazy(() => import('./pages/modules/AIStudioPage').then((m) => ({ default: m.AIStudioPage })));
+const BudgetPlannerPage = lazy(() => import('./pages/modules/BudgetPlannerPage').then((m) => ({ default: m.BudgetPlannerPage })));
+const VendorMatchPage = lazy(() => import('./pages/modules/VendorMatchPage').then((m) => ({ default: m.VendorMatchPage })));
+const TimelinePage = lazy(() => import('./pages/modules/TimelinePage').then((m) => ({ default: m.TimelinePage })));
+const InclusiveCheckerPage = lazy(() => import('./pages/modules/InclusiveCheckerPage').then((m) => ({ default: m.InclusiveCheckerPage })));
+const WhatIfSimulatorPage = lazy(() => import('./pages/modules/WhatIfSimulatorPage').then((m) => ({ default: m.WhatIfSimulatorPage })));
+const InvitationCreatorPage = lazy(() => import('./pages/modules/InvitationCreatorPage').then((m) => ({ default: m.InvitationCreatorPage })));
+const RegisterPage = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.RegisterPage })));
+const SignInPage = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.SignInPage })));
+const ForgotPasswordPage = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.ResetPasswordPage })));
 
 export const App: React.FC = () => {
   return (
-    <BrowserRouter><AuthProvider>
+    <BrowserRouter><AuthProvider><Suspense fallback={<div className="min-h-screen bg-ivory-50" aria-label="Loading page" />}>
       <Routes>
         {/* Landing Page */}
         <Route path="/" element={<LandingPage />} />
@@ -49,7 +53,7 @@ export const App: React.FC = () => {
         {/* Fallback to Landing */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </AuthProvider></BrowserRouter>
+    </Suspense></AuthProvider></BrowserRouter>
   );
 };
 

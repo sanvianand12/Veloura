@@ -1,7 +1,7 @@
 from starlette.responses import Response
 from starlette.requests import Request
 from app.api.routes.auth import register, login, current_user, logout, reset_password, RegisterInput, LoginInput, ResetPasswordInput, _hash_secret
-from app.api.routes.events import get_all_events, get_single_event, update_existing_event, delete_existing_event
+from app.api.routes.events import get_all_events, get_single_event, get_event_metrics, create_new_event, update_existing_event, delete_existing_event
 from app.api.routes.planning import get_event_plan
 from app.models.event import Event
 from app.models.event_plan import EventPlan
@@ -9,7 +9,7 @@ from app.models.user import User
 from app.models.user import PasswordReset
 from datetime import datetime, timedelta, timezone
 from app.main import app
-from app.schemas.event import EventUpdate
+from app.schemas.event import EventCreate, EventUpdate
 
 def test_registration_session_ownership_and_preserved_plan(db):
     event = Event(title='Legacy wedding', event_type='Wedding', date='2027-01-01', location='Jaipur', guest_count=100, budget=500000, status='Planning')
@@ -30,7 +30,12 @@ def test_registration_session_ownership_and_preserved_plan(db):
 
     register(RegisterInput(name='User B', email='b@example.com', password='B-secure-password-123', confirm_password='B-secure-password-123'), Response(), db)
     user_b = db.query(User).filter_by(email='b@example.com').one()
-    assert get_all_events(db=db, user=user_b) == []
+    create_new_event(EventCreate(title='User B reception', event_type='Reception', date='2027-02-02', location='Goa', guest_count=60, budget=250000), db=db, user=user_b)
+    assert [event.title for event in get_all_events(db=db, user=user_b)] == ['User B reception']
+    stats_a = get_event_metrics(db=db, user=user_a)
+    stats_b = get_event_metrics(db=db, user=user_b)
+    assert (stats_a.total_events, stats_a.total_budget, stats_a.total_guests, stats_a.upcoming_events) == (1, 500000, 100, 1)
+    assert (stats_b.total_events, stats_b.total_budget, stats_b.total_guests, stats_b.upcoming_events) == (1, 250000, 60, 1)
     for operation in [
         lambda: get_single_event(event_id, db, user_b),
         lambda: update_existing_event(event_id, EventUpdate(title='Hacked'), db, user_b),

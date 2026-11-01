@@ -9,32 +9,65 @@ export const HealthBadge: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
+    let isFetching = false;
+    let interval: number | undefined;
     const fetchHealth = async () => {
+      if (isFetching) return;
+      isFetching = true;
       try {
         const data = await apiService.checkHealth();
         if (isMounted) {
-          setHealth(data);
-          setLoading(false);
+          setHealth((current) => current &&
+            current.status === data.status &&
+            current.service === data.service &&
+            current.database === data.database &&
+            current.version === data.version ? current : data);
+          setLoading((current) => current ? false : current);
         }
       } catch {
         if (isMounted) {
-          setHealth({
+          const data: HealthCheckResponse = {
             status: 'offline',
             service: 'Veloura Backend',
             timestamp: new Date().toISOString(),
             database: 'unreachable',
             version: '0.1.0'
-          });
-          setLoading(false);
+          };
+          setHealth((current) => current && current.status === data.status && current.database === data.database ? current : data);
+          setLoading((current) => current ? false : current);
         }
+      } finally {
+        isFetching = false;
       }
     };
 
-    fetchHealth();
-    const interval = setInterval(fetchHealth, 15000);
+    const stopPolling = () => {
+      if (interval !== undefined) window.clearInterval(interval);
+      interval = undefined;
+    };
+    const startPolling = () => {
+      if (interval === undefined && document.visibilityState !== 'hidden') {
+        interval = window.setInterval(fetchHealth, 60_000);
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        stopPolling();
+      } else {
+        void fetchHealth();
+        startPolling();
+      }
+    };
+
+    if (document.visibilityState !== 'hidden') {
+      fetchHealth();
+      startPolling();
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      stopPolling();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
 
