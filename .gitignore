@@ -218,3 +218,25 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Veloura Project Additions
+node_modules/
+dist/
+.venv/
+venv/
+*.db
+*.sqlite3
+.env
+.env.local
+
+
+# Additional Veloura security exclusions
+.env*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite3-journal
+node_modules/
+dist/
