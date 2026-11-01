@@ -10,20 +10,20 @@ class User(Base):
     name = Column(String(120), nullable=False)
     email = Column(String(320), unique=True, nullable=False, index=True)
     password_hash = Column(String(256), nullable=False)
-    created_at = Column(DateTime, default=utc_now, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 class UserSession(Base):
     __tablename__ = "user_sessions"
     id = Column(Integer, primary_key=True)
     token_hash = Column(String(64), unique=True, nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=utc_now, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 class PasswordReset(Base):
     __tablename__ = "password_resets"
     id = Column(Integer, primary_key=True)
     token_hash = Column(String(64), unique=True, nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    expires_at = Column(DateTime, nullable=False)
-    used_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)

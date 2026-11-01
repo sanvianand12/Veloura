@@ -158,7 +158,35 @@ Start the backend and frontend using the commands above, then open `http://local
 
 Password reset emails require SMTP configuration in the backend process environment. Set `SMTP_HOST`, `SMTP_PORT` (usually `587`), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, and `FRONTEND_URL` (the deployed frontend origin). Without SMTP configured, reset requests remain generic and no reset email can be delivered. For production, serve frontend/API same-origin or set frontend `VITE_API_BASE_URL` to the API origin, then configure `COOKIE_SECURE=true` behind HTTPS; use `COOKIE_SAMESITE=lax` when frontend and API are same-site, and `COOKIE_SAMESITE=none` plus Secure HTTPS cookies only when they must be cross-site. Restrict `CORS_ORIGINS` to the exact frontend origins. The built-in login limiter is in-memory and per client IP; a multi-worker deployment should add a shared rate-limit store or enforce an equivalent limit at the reverse proxy. Local development defaults to non-secure cookies for localhost.
 
-The startup schema migration uses `CREATE TABLE IF NOT EXISTS` and an idempotent `ALTER TABLE events ADD COLUMN owner_id`; it does not drop or recreate the SQLite database or rewrite event-plan JSON. Back up the database before production upgrades as routine operational practice.
+Startup creates missing tables from the existing SQLAlchemy metadata and applies an idempotent `ALTER TABLE events ADD COLUMN owner_id`; it does not drop or recreate the SQLite database or rewrite event-plan JSON. Back up the database before production upgrades as routine operational practice.
+
+### Deploying the backend to Render and frontend to Vercel
+
+Create a managed PostgreSQL database in Render and a Python web service with **Root Directory** `backend`, **Build Command** `pip install -r requirements.txt`, and this exact **Start Command**:
+
+```sh
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+Set the Render health check path to `/health`. Set the backend environment variables below (use Render's internal database URL when the service and database are in the same region):
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | Render PostgreSQL internal connection URL (`postgresql://...`) |
+| `DEBUG` | `false` |
+| `COOKIE_SECURE` | `true` |
+| `COOKIE_SAMESITE` | `none` for Vercel + Render cross-site cookies |
+| `CORS_ORIGINS` | Exact Vercel site origin, e.g. `https://your-app.vercel.app` (comma-separated only if you have multiple trusted origins) |
+| `FRONTEND_URL` | Exact Vercel site origin, used to create password-reset links |
+| `SMTP_HOST` | SMTP provider hostname |
+| `SMTP_PORT` | Usually `587` with STARTTLS |
+| `SMTP_USER` | SMTP account username |
+| `SMTP_PASSWORD` | SMTP account password/token, stored as a Render secret |
+| `SMTP_FROM` | Verified sender address |
+
+On Vercel, set **Root Directory** `frontend`, build command `npm run build`, output directory `dist`, and `VITE_API_BASE_URL` to the Render backend's HTTPS origin (for example `https://your-api.onrender.com`). Redeploy after changing Vercel build variables. The backend only allows credentialed CORS requests from the configured `CORS_ORIGINS`; do not use `*`. Cross-site cookies require HTTPS, `COOKIE_SECURE=true`, and `COOKIE_SAMESITE=none`.
+
+The backend creates missing tables at startup and applies the additive `events.owner_id` migration on either supported database. It never seeds or deletes data. The existing local SQLite file is not uploaded or copied to Render: a new Render PostgreSQL database starts empty unless you intentionally perform a separate export/import. Run one backend instance for the initial schema migration before scaling out. Schema changes beyond this small additive migration should use a versioned migration tool such as Alembic.
 
 ---
 

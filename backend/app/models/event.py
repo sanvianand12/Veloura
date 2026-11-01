@@ -21,5 +21,5 @@ class Event(Base):
     theme = Column(String(150), nullable=True)         # Visual aesthetic / style concept
     description = Column(Text, nullable=True)
     status = Column(String(50), nullable=False, default="Planning")  # Planning, Confirmed, Completed, Cancelled
-    created_at = Column(DateTime, default=utc_now, nullable=False)
-    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)

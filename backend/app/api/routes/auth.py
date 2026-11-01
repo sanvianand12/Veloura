@@ -9,14 +9,23 @@ from app.models.event import Event
 from app.schemas.auth import RegisterInput, LoginInput, ResetRequest, ResetPasswordInput, UserResponse
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
-COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax").lower()
-if COOKIE_SAMESITE not in {"lax", "strict", "none"}: COOKIE_SAMESITE = "lax"
+
+def parse_cookie_settings(secure_value: str | None, samesite_value: str | None) -> tuple[bool, str]:
+    secure = (secure_value or "false").lower() in {"true", "1", "yes"}
+    samesite = (samesite_value or "lax").lower()
+    if samesite not in {"lax", "strict", "none"}: samesite = "lax"
+    if samesite == "none" and not secure:
+        raise ValueError("COOKIE_SAMESITE=none requires COOKIE_SECURE=true")
+    return secure, samesite
+
+COOKIE_SECURE, COOKIE_SAMESITE = parse_cookie_settings(os.getenv("COOKIE_SECURE"), os.getenv("COOKIE_SAMESITE"))
 SESSION_COOKIE = "veloura_session"
 CSRF_COOKIE = "veloura_csrf"
 attempts: dict[str, list[float]] = {}
 
 def _hash_secret(value: str) -> str: return hashlib.sha256(value.encode()).hexdigest()
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 def _password_hash(password: str) -> str:
     salt = secrets.token_bytes(16)
     derived = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
@@ -41,7 +50,7 @@ def current_user(veloura_session: str | None = Cookie(default=None), db: Session
     if not veloura_session: raise HTTPException(401, "Authentication required")
     session = db.query(UserSession).filter(UserSession.token_hash == _hash_secret(veloura_session)).first()
     now = datetime.now(timezone.utc)
-    if not session or session.expires_at.replace(tzinfo=timezone.utc) <= now:
+    if not session or _as_utc(session.expires_at) <= now:
         raise HTTPException(401, "Session expired")
     return db.query(User).filter(User.id == session.user_id).first()
 
@@ -119,7 +128,7 @@ def reset_password(data: ResetPasswordInput, response: Response, db: Session = D
     if data.password != data.confirm_password: raise HTTPException(422, "Passwords do not match")
     reset = db.query(PasswordReset).filter(PasswordReset.token_hash == _hash_secret(data.token), PasswordReset.used_at.is_(None)).first()
     now = datetime.now(timezone.utc)
-    if not reset or reset.expires_at.replace(tzinfo=timezone.utc) <= now: raise HTTPException(400, "Reset link is invalid or expired")
+    if not reset or _as_utc(reset.expires_at) <= now: raise HTTPException(400, "Reset link is invalid or expired")
     user = db.query(User).filter(User.id == reset.user_id).first(); user.password_hash = _password_hash(data.password); reset.used_at = now
     db.query(UserSession).filter(UserSession.user_id == user.id).delete(); db.commit()
     response.delete_cookie(SESSION_COOKIE, path="/", secure=COOKIE_SECURE, httponly=True, samesite=COOKIE_SAMESITE)

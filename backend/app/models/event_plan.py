@@ -26,8 +26,8 @@ class EventPlan(Base):
     # List of completed stage identifiers: ["concept", "budget", "vendors", "timeline", "requirements", "what_if", "invitations"]
     completed_stages_json = Column(Text, nullable=False, default="[]")
 
-    created_at = Column(DateTime, default=utc_now, nullable=False)
-    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     # Relationship to parent Event.
     # passive_deletes=True: SQLAlchemy defers to DB-level ON DELETE CASCADE on event_id FK.

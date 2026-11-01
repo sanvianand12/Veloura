@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.config import PROJECT_NAME, PROJECT_VERSION, CORS_ORIGINS
+from app.config import PROJECT_NAME, PROJECT_VERSION, CORS_ORIGINS, DEBUG
 from app.database.session import init_db
 from app.api.routes.health import router as health_router
 from app.api.routes.events import router as events_router
@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=PROJECT_NAME,
     version=PROJECT_VERSION,
+    debug=DEBUG,
     description="Veloura - AI-powered event planning platform backend",
     lifespan=lifespan,
     docs_url="/docs",
